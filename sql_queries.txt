@@ -1,0 +1,133 @@
+CREATE EXTERNAL TABLE IF NOT EXISTS json_formatted_data (
+    `customerid` string, 
+    `customername` string, 
+    `emailaddress` string, 
+    `phonenumber` string, 
+    `accountid` string, 
+    `balance` double, 
+    `transactionid` string, 
+    `transactiondate` date, 
+    `transactiontype` string, 
+    `amount` double, 
+    `categoryid` string, 
+    `transactiondescription` string, 
+    `marketdataid` string, 
+    `price` double
+) ROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'
+LOCATION 's3://zipco-bank-project-bucket/Output/json/';
+
+
+_______________________________________________________________________________________________________
+
+
+CREATE TABLE new_json_formatted_data
+WITH (
+      external_location = 's3://zipco-bank-project-bucket/Output/new_json_formatted_data/',
+      format = 'JSON') 
+AS SELECT 
+        customerid,
+        customername,
+        emailaddress,
+        phonenumber,
+        accountid,
+        balance,
+        transactionid,
+        transactiontype,
+        amount,
+        categoryid,
+        transactiondescription,
+        marketdataid,
+        price,
+        transactiondate,
+        year(transactiondate) as transactionyear
+FROM "zipco_database"."json_formatted_data";
+
+
+_______________________________________________________________________________________________________
+
+CREATE TABLE parquet_formatted_data
+WITH (
+    format = 'Parquet',
+    write_compression = 'snappy',
+    external_location = 's3://zipco-bank-project-bucket/Output/parquet_formatted_data/',
+    partitioned_by = ARRAY['transactionyear', 'transactionmonth']
+)
+AS 
+SELECT 
+    customerid,
+    customername,
+    emailaddress,
+    phonenumber,
+    accountid,
+    balance,
+    transactionid,
+    transactiontype,
+    amount,
+    categoryid,
+    transactiondescription,
+    marketdataid,
+    price,
+    transactiondate,
+    year(transactiondate) AS transactionyear,
+    month(transactiondate) AS transactionmonth
+FROM "zipco_database"."new_json_formatted_data"
+WHERE year(transactiondate) BETWEEN 2000 AND 2007;
+
+ 
+_______________________________________________________________________________________________________
+ 
+
+INSERT INTO parquet_formatted_data
+SELECT 
+    customerid,
+    customername,
+    emailaddress,
+    phonenumber,
+    accountid,
+    balance,
+    transactionid,
+    transactiontype,
+    amount,
+    categoryid,
+    transactiondescription,
+    marketdataid,
+    price,
+    transactiondate,
+    year(transactiondate) AS transactionyear,
+    month(transactiondate) AS transactionmonth
+FROM "zipco_database"."new_json_formatted_data"
+WHERE year(transactiondate) BETWEEN 2008 AND 2015;
+#WHERE year(transactiondate) BETWEEN 2008 AND 2015;
+#WHERE year(transactiondate) BETWEEN 2016 AND 2023;
+
+_______________________________________________________________________________________________________
+
+CREATE TABLE parquet_bucketed_formatted_data
+WITH (
+    format = 'Parquet',
+    write_compression = 'snappy',
+    external_location = 's3://zipco-bank-project-bucket/Output/parquet_bucketed_formatted_data/',
+    partitioned_by = ARRAY['transactionyear', 'transactionmonth']
+    bucketed_by = ARRAY['customerid'], 
+      bucket_count = 12
+      )
+AS 
+SELECT 
+    customerid,
+    customername,
+    emailaddress,
+    phonenumber,
+    accountid,
+    balance,
+    transactionid,
+    transactiontype,
+    amount,
+    categoryid,
+    transactiondescription,
+    marketdataid,
+    price,
+    transactiondate,
+    year(transactiondate) AS transactionyear,
+    month(transactiondate) AS transactionmonth
+FROM "zipco_database"."parquet_formatted_data"
+WHERE transactionyear = 2000 AND transactionmonth >= 8;
